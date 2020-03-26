@@ -1,0 +1,286 @@
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<script src="https://d3js.org/d3.v5.min.js"></script>
+<script src="https://momentjs.com/downloads/moment.js"></script>
+<script src="https://www.weather.gov/source/box/box_js/jquery.js"></script>
+<script src="https://www.weather.gov/source/box/box_js/jquery-ui.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.6.0/Chart.min.js"></script>
+<div id='dataselection' class="center"></div>
+<div id='basichart'></div>
+
+<style>
+
+.chartstyle{
+    position: relative;
+    height:1000 px; 
+    width: 850 px
+}
+
+.sitebuttonstyle{
+    margin: auto;
+    margin-right: 25px;
+    margin-top: 25px;
+    text-align: center;
+}
+
+</style>
+<script>
+
+var mylinechart;
+
+var url = "https://covidtracking.com/api/states/daily";
+
+var colorscale = d3.scaleOrdinal()
+    .domain([0,60])
+    .range(["#bb606b","#cf4442","#d66d2b","#c37f50","#c9a934",
+    "#796e26","#a8ad5e","#79bc3c","#4d8f37","#437e50","#5cc37a","#4ebdaf","#52a7d8",
+    "#697ec3","#626bd1","#9d5ccf","#d791ce","#97518c","#cd50b4","#d54680"]);
+
+var colourArray = d3.range(60).map(function(d) {
+  return colorscale(d);
+});
+
+var statelabel = {"AL":"Alabama","AK":"Alaska","AR":"Arkansas","AS":"American Samoa",
+"AZ":"Arizona","CA":"California","CO":"Colorado","CT":"Connecticut","DC":"District of Columbia",
+"DE":"Delaware","FL":"Florida","GA":"Georgia","GU":"Guam","HI":"Hawaii","IA":"Iowa",
+"ID":"Idaho","IL":"Illinois","IN":"Indiana","KS":"Kansas","KY":"Kentucky","LA":"Louisiana",
+"MA":"Massachusetts","MD":"Maryland","ME":"Maine","MI":"Michigan","MN":"Minnesota",
+"MO":"Missouri","MS":"Mississippi","MT":"Montana","NC":"North Carolina","ND":"North Dakota",
+"NE":"Nebraska","NH":"New Hampshire","NJ":"New Jersey","NM":"New Mexico","NV":"Nevada",
+"NY":"New York","OH":"Ohio","OK":"Oklahoma","PA":"Pennsylvania","PR":"Puerto Rico",
+"RI":"Rhode Island","SC":"South Carolina","SD":"South Dakota","TN":"Tennessee",
+"TX":"Texas","UT":"Utah","VA":"Virginia","VI":"Virgin Islands","VT":"Vermont",
+"WA":"Washington","WI":"Wisconsin","WV":"West Virginia","WY":"Wyoming"};
+
+var stateoptions = ["AL","AK","AR","AS","AZ","CA","CO","CT","DC","DE","FL","GA",
+"GU","HI","IA","ID","IL","IN","KS","KY","LA","MA","MD","ME","MI","MN","MO","MS",
+"MT","NC","ND","NE","NH","NJ","NM","NV","NY","OH","OK","PA","PR","RI","SC","SD",
+"TN","TX","UT","VA","VI","VT","WA","WI","WV","WY"];
+var over15mil = ["CA","TX","FL","NY"];
+var over8mil = ["PA","IL","OH","GA","NC","MI","NJ","VA"];
+var over6mil = ["WA","AZ","MA","TN","IN","MO","MD"];
+var over4mil = ["WI","CO","MN","SC","AL","LA","KY","OR"];
+var over2mil = ["OK","CT","VT","IA","NV","AR","MS","KS","NM"];
+var over1mil = ["NE","WV","ID","HI","NH","ME","MT","RI"];
+var undr1mil = ["DE","SD","ND","AK","DC","VT","WY"];
+var newengland = ["MA","ME","NH","VT","RI","CT"];
+var midatlantic = ["NY","PA","NJ","DE","MD","DC"];
+var enmidwest = ["OH","MI","IN","IL","WI"];
+var wnmidwest = ["MN","IA","MO","ND","SD","NE","KS"];
+var southatlantic = ["NC","SC","GA","FL","VA","WV"];
+var wesouthcentral = ["AL","MS","KY","TN","AR","LA","OK","TX"];
+var mountainwest = ["MT","ID","WV","NV","UT","CO","AZ","NM"];
+var pacific = ["AK","HI","WA","OR","CA"];
+var selectValue = "Population Over 1 Million";
+var selectionoptions = {"Select A Region":"Nothing",
+    "All":stateoptions,
+    "Population Over 15 Million":over15mil,
+    "Population Over 8 Million":over8mil,
+    "Population Over 6 Million":over6mil,
+    "Population Over 4 Million":over4mil,
+    "Population Over 2 Million":over2mil,
+    "Population Over 1 Million":over1mil,
+    "Population Under 1 Million":undr1mil,
+    "New England":newengland,
+    "Mid Atlantic":midatlantic,
+    "Eastern Midwest":enmidwest,
+    "Western Midwest":wnmidwest,
+    "South Atlantic":southatlantic,
+    "South Central":wesouthcentral,
+    "Mountain West":mountainwest,
+    "Pacific":pacific
+};
+
+var locationSelect = selectionoptions[selectValue];
+
+var selectVariable = "Positive Tests";
+var variableoptions = {"Positive Tests":"positive",
+    "Negative Tests":"negative",
+    "Number of Deaths":"deaths",
+    "Pending Test Results":"pending",
+    "Hospitalizations":"hospitalized",
+};
+var variableSelect = variableoptions[selectVariable];
+
+var margin = {top: 0, right: 30, bottom: 30, left: 60},
+    width = 460 - margin.left - margin.right,
+    height = 0 - margin.top - margin.bottom;
+    
+var adding = d3.select("#basichart")
+    adding.append('div').attr('class','chart-container').attr('class','chartstyle')
+    .append("canvas").attr("id","line-chart");
+
+var svg = d3.select("#basichart")
+    .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+    .append("iframe")
+        .attr("transform",
+            "translate(" + margin.left + "," + margin.top + ")");
+
+responsivefy(svg);
+            
+var main = d3.select('#dataselection');
+main.append('div').attr('id','thebuttons').attr('align','center');
+main.append('div').attr('id','moreselect').attr('align','center');
+var selection = d3.select('#thebuttons')
+var selectiontext = selection.append('div').text('Make a selection: ');
+var rebellion = d3.select('#moreselect').append('div')
+var mybuttons = [];
+var varbuttns = [];
+var timestamp ;
+
+function responsivefy(svg) {
+    // get container + svg aspect ratio
+    var container = d3.select(svg.node().parentNode),
+        width = parseInt(svg.style("width")),
+        height = parseInt(svg.style("height")),
+        aspect = width / height;
+
+    // add viewBox and preserveAspectRatio properties,
+    // and call resize so that svg resizes on inital page load
+    svg.attr("viewBox", "0 0 " + width + " " + height)
+        .attr("perserveAspectRatio", "xMinYMid")
+        .call(resize);
+
+    // to register multiple listeners for same event type, 
+    // you need to add namespace, i.e., 'click.foo'
+    // necessary if you call invoke this function for multiple svgs
+    // api docs: https://github.com/mbostock/d3/wiki/Selections#on
+    d3.select(window).on("resize." + container.attr("id"), resize);
+
+    // get width of container and resize svg to fit it
+    function resize() {
+        var targetWidth = parseInt(container.style("width"));
+        svg.attr("width", targetWidth);
+        svg.attr("height", Math.round(targetWidth / aspect));
+    }
+}
+
+function changelocation(){
+    mybuttons = selection.append('select').attr('id','selection')
+        .on('change',onchange);
+    varbuttns = rebellion.append('div').attr('id','rebellion');
+    var locationoptions = mybuttons.selectAll('option').style('display','inline-block')
+        .data(Object.keys(selectionoptions)).enter()
+        .append('option')
+        .text(function(d){ return d; });
+    function onchange(){
+        selectValue = d3.select('select').property('value')
+        locationSelect = selectionoptions[selectValue];
+        mylinechart.destroy();
+        datagather(locationSelect);
+    }
+        
+    Object.keys(variableoptions).forEach(function(value){
+        var variablebutton = varbuttns.append('div').style('display','inline-block').append('button')
+            .attr('class','sitebuttonstyle')
+            .attr('id',value)
+            .text(value);
+            variablebutton.on('click',function(){
+                selectVariable = this.id;
+                variableSelect = variableoptions[selectVariable];
+                mylinechart.destroy();
+                datagather(locationSelect);
+            });
+    });
+}
+
+function datagather(datasetselection){
+    var ronapromise = [];
+    var testobj = {};
+    var plotdata =[];
+function emptyarraypusher(obj,arrayname,variable){
+    if (!obj[arrayname]){
+        obj[arrayname] = [];
+    }
+    obj[arrayname].push(variable);
+}
+
+    ronapromise.push(d3.json(url))
+        Promise.all(ronapromise).then(function(array1){
+            array1.forEach(function(array2){
+                array2.forEach(function(obj){
+                    var time = obj.date;
+                    var state = obj.state;
+                    for(let[key,value] of Object.entries(obj)) {
+                        if(variableSelect.includes(key) == true){
+                            if(!testobj[state]){
+                                testobj[state] = {sid:state};
+                            }
+                            emptyarraypusher(testobj[state],"date",time);
+                            emptyarraypusher(testobj[state],key,value);
+                        }
+                    }
+                });
+            })
+        Object.values(testobj).forEach(function(beta,index){
+            if(datasetselection.includes(beta.sid) == true){
+                timestamp = beta.date;
+                label = beta.sid 
+                for (let[key, value] of Object.entries(beta)){
+                    if (key !="sid" && key != "date"){
+                        var dataset = {
+                            data: value,
+                            label: statelabel[beta.sid],
+                            borderColor: colourArray[index],
+                            fill:false
+                        };
+                        plotdata.push(dataset);
+                    }
+                }
+            }
+        });
+            plotting(plotdata,timestamp)
+        })
+}
+
+function plotting(dataset,time,title){
+    mylinechart = new Chart(document.getElementById("line-chart"),{
+        type:'line',
+        data:{
+            labels: time,
+            datasets:dataset,
+        },options:{
+            responsive: true,
+            scales:{
+                yAxes: [{
+                 display: true,
+                  ticks: {display: true},
+                  scaleLabel: {
+                      display: true,
+                      labelString: "Number of people",
+                      fontStyle: 'bold',
+                      fontSize: 14
+                  }
+                }],
+                xAxes:[{
+                    scaleLabel: {
+                        display: true,
+                        labelString: "Month and Day",
+                        fontsize: 40
+                    },
+                  type: 'time',
+                  time:{
+                      parser: "YYYY-MM-DD",
+                      tooltipFormat: 'MM-DD',
+                      unit: "day",
+                      unitStepSize: 2,
+                      displayFormats:{
+                          "day": "MM-DD"
+                      }
+                  }
+                }]
+            },
+            title:{
+                display: true,
+                text: " COVID 19 Chart "+selectVariable+" for "+selectValue
+            }
+        }
+    }); 
+}
+
+datagather(locationSelect);
+changelocation();
+</script>
